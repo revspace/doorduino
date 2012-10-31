@@ -1,5 +1,35 @@
 #include <OneWire.h>
 
+
+/*
+
+  5V -----\/\/\-----+
+          R=4k7     |
+  10 ---------------+------------o   o-----1wire----+
+                                                    |
+                           +-----o   o-----strike   |
+                           |                 |      |
+  11 -----+-----\/\/\-----K  (npn)          12V     |
+          |     R=1k       |                        |
+          |                |                        |
+          +-----\/\/\------+------------------------+
+                R=100k                              |
+                                                    |
+  12 -----\/\/\------------------o   o------>|------+
+          R=220                             red     |
+                                                    |
+  13 -----\/\/\------------------o   o------>|------+
+          R=220                            green    |
+                                                    |
+ GND ----------------------------o   o--------------+
+                                                    |
+  Optional:                                  |      |
+                                           -----    |
+   9 ----------------------------o   o-----o   o----+
+
+*/
+
+
 #define PIN_LED_GREEN 13
 #define PIN_LED_RED   12
 #define PIN_UNLOCK    11
@@ -23,11 +53,11 @@ void setup () {
   Serial.begin(9600);
   Serial.println("RESET");
   pinMode(PIN_LED_GREEN, OUTPUT);
-  pinMode(PIN_LED_RED,   OUTPUT);  
+  pinMode(PIN_LED_RED,   OUTPUT);
   pinMode(PIN_UNLOCK,    OUTPUT);
   pinMode(PIN_BUTTON,    INPUT);
   digitalWrite(PIN_BUTTON, HIGH);
-  
+
   led(YELLOW);
 }
 

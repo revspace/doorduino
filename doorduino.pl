@@ -5,6 +5,8 @@ use IO::Socket::INET ();
 use IO::Handle ();
 
 my $dev = (glob "/dev/ttyUSB*")[-1] or die "No ttyUSB* found...";
+my $ircname = `cat doorduino.ircname`;
+chomp $ircname;
 
 system qw(stty -F), $dev, qw(cs8 9600 ignbrk -brkint -icrnl -imaxbel -opost
 	-onlcr -isig -icanon -iexten -echo -echoe -echok -echoctl -echoke
@@ -49,7 +51,7 @@ for (;;) {
         my $barsay = IO::Socket::INET->new(
             qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
         );
-        $barsay->print("2.0 unlocked by $descr") if $barsay;
+        $barsay->print("$ircname unlocked by $descr") if $barsay;
     } else {
         logline "Access denied.\n";
         print {$out} "N\n";

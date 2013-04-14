@@ -1,0 +1,7 @@
+#!/bin/sh
+
+for i in bluetooth console-kit-daemon console-kit-log-system-start console-kit-log-system-stop \
+         console-kit-log-system-restart firewalld iprdump iprinit iprupdate NetworkManager polkit sendmail sm-client; do
+   systemctl mask $i.service
+done
+

@@ -3,6 +3,7 @@ use strict;
 use POSIX qw(strftime);
 use IO::Socket::INET ();
 use IO::Handle ();
+use Sys::Syslog qw(openlog syslog :macros);
 
 my $dev = (glob "/dev/ttyUSB*")[-1] or die "No ttyUSB* found...";
 my $ircname = `cat doorduino.ircname`;
@@ -15,15 +16,17 @@ system qw(stty -F), $dev, qw(cs8 9600 ignbrk -brkint -icrnl -imaxbel -opost
 
 open my $in,  "<", $dev or die $!;
 open my $out, ">", $dev or die $!;
-open my $log, ">>", "access.log" or warn $!;
+#open my $log, ">>", "access.log" or warn $!;
+#$log->autoflush(1);
+openlog "doorduino", "nofatal,perror", LOG_USER;
 
 sub logline {
-    my $timestamp = strftime "%Y-%m-%d %H:%M:%S ", localtime;
-    print $timestamp, @_;
-    print {$log} $timestamp, @_;
+#    my $timestamp = strftime "%Y-%m-%d %H:%M:%S ", localtime;
+#    print $timestamp, @_;
+#    print {$log} $timestamp, @_;
+    syslog LOG_INFO, "@_";
 }
 
-$log->autoflush(1);
 
 my $line;
 
@@ -57,5 +60,4 @@ for (;;) {
         print {$out} "N\n";
     }
 }
-
 

@@ -1,0 +1,8 @@
+Kelder-klushok:
+    USB rechts, screw terminals onder
+    GND  NC  1w  strike  red  green
+
+Kelder-meukhok + kantoor:
+    USB rechts, screw terminals onder
+    12Vin  GND  12Vuit  strike  GND  1w  red  green
+

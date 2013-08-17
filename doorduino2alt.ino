@@ -1,6 +1,6 @@
 #include <OneWire.h>
-
-
+#include "ds1961.h"
+#include "hexutil.c"
 /*
 
   5V -----\/\/\-----+
@@ -53,6 +53,8 @@
 #define YELLOW (GREEN | RED)
 
 OneWire ds(PIN_1WIRE);
+DS1961  sha(&ds);
+
 byte addr[8];
 
 void led (byte color) {
@@ -61,7 +63,7 @@ void led (byte color) {
 }
 
 void setup () {
-  Serial.begin(9600);
+  Serial.begin(57600);
   Serial.println("RESET");
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_RED,   OUTPUT);
@@ -73,6 +75,8 @@ void setup () {
 }
 
 void loop () {
+  char challenge[3];
+  
   ds.reset_search();
   if (ds.search(addr)) {
     if (OneWire::crc8(addr, 7) != addr[7]) return;
@@ -99,6 +103,7 @@ void loop () {
   char c = Serial.read();
   
   if (c == 'A') {
+    // XXX Wat als een challenge ooit "A" bevat?
     Serial.println("ACCESS");
     led(GREEN);
     digitalWrite(PIN_UNLOCK, HIGH);
@@ -111,6 +116,31 @@ void loop () {
     led(RED);
     delay(10000);
     led(YELLOW);
+  } else if (c == 'C') {
+    led(OFF);
+    if (Serial.readBytes(challenge, 3) != 3) return;
+    ibutton_challenge(addr, (byte*) challenge);
   }
   while (Serial.available()) Serial.read();
+}
+
+void ibutton_challenge(byte* id, byte* challenge) {
+  uint8_t data[32];
+  uint8_t mac[20];
+  if (!sha.ReadAuthWithChallenge(id, 0, challenge, data, mac)) {
+    Serial.println("CHALLENGE ERROR");
+    return;
+  }
+  Serial.print("<");
+  hexdump(data, 32);
+  Serial.print(" ");
+  hexdump(mac, 20);
+  Serial.println(">");  
+}
+
+void hexdump(byte* string, int size) {
+  for (int i = 0; i < size; i++) {
+    Serial.print(string[i] >> 4, HEX);
+    Serial.print(string[i] & 0xF, HEX);
+  }
 }

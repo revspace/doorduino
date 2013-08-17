@@ -32,7 +32,9 @@ sub ibutton_digest {
     );
 
     return uc unpack "H*", reverse join "", map {
-        pack "N", $_ - shift @H01
+        my $n = $_ - shift @H01;
+	# Handmatig want pack N voor negatieve getallen blijtk stuk op perl+arm
+        pack "N", $n >= 0 ? $n : (0xFFFFFFFF + $n + 1)
     } unpack "N*", sha1( pack "H*", join "",
         substr($secret, 0, 8),
         $data,
@@ -52,7 +54,6 @@ sub access {
 
     logline "Access granted for $descr.\n";
     print {$out} "A\n";
-    return; # XXX
     my $barsay = IO::Socket::INET->new(
         qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
     );
@@ -84,7 +85,8 @@ for (;;) {
 
     if ($input =~ /<([$hexchar]{64}) ([$hexchar]{40})>/) {
         my ($data, $response) = ($1, $2);
-        if (uc $response eq ibutton_digest($id, $secret, $data, $challenge)) {
+        my $expected = ibutton_digest($id, $secret, $data, $challenge);
+        if (uc $response eq uc $expected) {
             access($out, $descr);
         } else {
             logline "Invalid response for challenge. Access denied.";

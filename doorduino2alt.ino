@@ -86,11 +86,10 @@ void loop () {
       Serial.print(addr[i], HEX);
     }
     Serial.println(">");
-    delay(200);  // debounce
+    delay(20);  // ivm bouncen van ibutton
   }
   if (digitalRead(PIN_BUTTON) == LOW) {
     Serial.println("<BUTTON>");
-    delay(500);  // debounce
   }
   
   unsigned int m = millis() % 3000;

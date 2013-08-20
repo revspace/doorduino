@@ -1,9 +1,10 @@
 #!/usr/bin/perl -w
 use strict;
-use POSIX qw(strftime);
+use POSIX qw(strftime tcflush TCIFLUSH);
 use IO::Socket::INET ();
 use IO::Handle ();
 use Sys::Syslog qw(openlog syslog :macros);
+
 
 sub slurp ($) { local (@ARGV, $/) = @_; <>; }
 
@@ -46,6 +47,12 @@ sub ibutton_digest {
     );
 }
 
+sub flush {
+    my ($fh) = @_;
+    sleep 1;
+    tcflush(fileno($fh), TCIFLUSH);
+}
+
 openlog "doorduino", "nofatal,perror", LOG_USER;
 sub logline { syslog LOG_INFO, "@_"; }
 
@@ -58,6 +65,7 @@ sub access {
         qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
     );
     $barsay->print("$ircname unlocked by $descr") if $barsay;
+    flush($out);
 }
 
 system qw(stty -F), $dev, qw(cs8 57600 ignbrk -brkint -icrnl -imaxbel -opost
@@ -120,6 +128,7 @@ for (;;) {
         $challenge = "";
 
         logline "Access denied.\n";
+	flush($out);
         print {$out} "N\n";
     }
 }

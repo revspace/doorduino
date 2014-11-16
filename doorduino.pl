@@ -84,8 +84,13 @@ my $descr;
 my $secret;
 my $challenge;
 
+$SIG{ALRM} = sub { print {$out} "K\n" };  # keepalive
+print {$out} "K\n";
+
 for (;;) {
+    alarm 3;
     sysread($in, my $char, 1) or next;
+    alarm 0;
     $line .= $char;
     $line =~ /\n$/ or next;
 

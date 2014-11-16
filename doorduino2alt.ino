@@ -76,6 +76,7 @@ void setup () {
 
 void loop () {
   char challenge[3];
+  static unsigned long keepalive = 0;
   
   ds.reset_search();
   if (ds.search(addr)) {
@@ -93,9 +94,11 @@ void loop () {
   }
   
   unsigned int m = millis() % 3000;
+  bool have_comm = (keepalive && millis() - 5000 < keepalive);
   led( 
     ((m > 2600 && m <= 2700) || (m > 2900))
-    ? OFF : YELLOW
+    ? (have_comm ? OFF : RED)
+    : (have_comm ? YELLOW : OFF)
   );
 
   if (!Serial.available()) return;
@@ -109,16 +112,20 @@ void loop () {
     delay(6000);
     digitalWrite(PIN_UNLOCK, LOW);
     led(YELLOW);
+    keepalive = millis();
   }
   else if (c == 'N') {
     Serial.println("NO ACCESS");
     led(RED);
     delay(10000);
     led(YELLOW);
+    keepalive = millis();
   } else if (c == 'C') {
     led(OFF);
     if (Serial.readBytes(challenge, 3) != 3) return;
     ibutton_challenge(addr, (byte*) challenge);
+  } else if (c == 'K') {
+    keepalive = millis();
   }
   while (Serial.available()) Serial.read();
 }

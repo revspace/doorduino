@@ -54,7 +54,10 @@ sub flush {
 }
 
 openlog "doorduino", "nofatal,perror", LOG_USER;
-sub logline { syslog LOG_INFO, "@_"; }
+sub logline { 
+    syslog LOG_INFO, "@_" if not $ENV{DOORDUINO_NOSYSLOG};
+    print STDERR "@_\n"   if     $ENV{DOORDUINO_NOSYSLOG} or $ENV{DOORDUINO_DEBUG};
+}
 
 sub access {
     my ($out, $descr) = @_;
@@ -69,8 +72,8 @@ sub access {
 }
 
 system qw(stty -F), $dev, qw(cs8 57600 ignbrk -brkint -icrnl -imaxbel -opost
-	-onlcr -isig -icanon -iexten -echo -echoe -echok -echoctl -echoke
-	noflsh -ixon -crtscts);
+        -onlcr -isig -icanon min 1 time 0 -iexten -echo -echoe -echok -echoctl
+        -echoke noflsh -ixon -crtscts);
 
 open my $in,  "<", $dev or die $!;
 open my $out, ">", $dev or die $!;

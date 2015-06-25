@@ -111,6 +111,8 @@ for (;;) {
         next;
     } elsif ($input =~ /<(BUTTON|\w{16})>/) {
         $id = $1;
+    } elsif ($input =~ /<K>/) {
+        logline "Arduino responded to keepalive";
     } else {
         next;
     }

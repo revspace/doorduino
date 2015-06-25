@@ -126,6 +126,7 @@ void loop () {
     ibutton_challenge(addr, (byte*) challenge);
   } else if (c == 'K') {
     keepalive = millis();
+    Serial.println("<K>");
   }
   while (Serial.available()) Serial.read();
 }

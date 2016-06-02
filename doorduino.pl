@@ -91,11 +91,18 @@ for (;;) {
     alarm 3;
     sysread($in, my $char, 1) or next;
     alarm 0;
+
     $line .= $char;
     $line =~ /\n$/ or next;
 
     my $input = $line;
     $line = "";
+
+    if ($input =~ /<K>/) {
+        # Arduino responded to keepalive. Ignore for now.
+        print STDERR strftime("%F %T Keepalive received.\n", localtime);
+        next;
+    }
 
     logline "Arduino says: $input";
 
@@ -111,8 +118,6 @@ for (;;) {
         next;
     } elsif ($input =~ /<(BUTTON|\w{16})>/) {
         $id = $1;
-    } elsif ($input =~ /<K>/) {
-        logline "Arduino responded to keepalive";
     } else {
         next;
     }

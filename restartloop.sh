@@ -2,7 +2,7 @@
 
 trap 'echo "--------------"' 2
 
-if [ "$1" == "" ]; then
+if [ -z "$1" ]; then
 	echo Usage: $0 /dev/ttyUSBx
 	exit 255
 fi

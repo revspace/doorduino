@@ -61,7 +61,7 @@ void led (byte color) {
 }
 
 void setup () {
-  Serial.begin(57600);
+  Serial.begin(115200);
   Serial.println("RESET");
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_RED,   OUTPUT);
@@ -73,15 +73,11 @@ void setup () {
 }
 
 static bool connected = false;
+static unsigned long error_flash;
 
 void error () {
   connected = false;
-  for (int i = 0; i < 5; i++) {
-    led(OFF);
-    delay(100);
-    led(YELLOW);
-    delay(50);
-  }
+  error_flash = millis() + 200;
 }
 
 void loop () {
@@ -109,6 +105,16 @@ void loop () {
     Serial.println("<BUTTON>");
   }
 
+  if (!connected && error_flash && error_flash < millis()) {
+    error_flash = 0;
+    for (int i = 0; i < 5; i++) {
+      led(OFF);
+      delay(50);
+      led(YELLOW);
+      delay(25);
+    }
+  }
+
   if (connected) {
     led(OFF);
   } else {
@@ -133,6 +139,7 @@ void loop () {
       digitalWrite(PIN_UNLOCK, LOW);
       led(YELLOW);
       keepalive = millis();
+      error_flash = 0;
     }
     else if (c == 'N') {
       Serial.println("NO ACCESS");
@@ -140,6 +147,7 @@ void loop () {
       delay(delay_noaccess);
       led(YELLOW);
       keepalive = millis();
+      error_flash = 0;
     } else if (c == 'C') {
       led(OFF);
 
@@ -148,9 +156,9 @@ void loop () {
       if (Serial.readBytes(page, 1) != 1) return;
       if (Serial.readBytes(challenge, 3) != 3) return;
 
-      if (! ibutton_challenge(id, page[0], (byte*) challenge)) {
+      if (! ibutton_challenge(page[0], (byte*) challenge)) {
         Serial.println("CHALLENGE ERROR");
-        error();
+        if (!ds.reset()) error();
         return;
       }
     } else if (c == 'X') {
@@ -166,12 +174,12 @@ void loop () {
       if (Serial.readBytes(newdata, 8) != 8) return;
       if (Serial.readBytes(mac, 20) != 20) return;
 
-      if (! sha.WriteData(id, page[0] * 32 + offset[0], (uint8_t*) newdata, (uint8_t*) mac)) {
+      if (! sha.WriteData(NULL, page[0] * 32 + offset[0], (uint8_t*) newdata, (uint8_t*) mac)) {
         Serial.println("EEPROM WRITE ERROR");
-       error();
-       return;
+        error();
+        return;
       }
-      if (! ibutton_challenge(id, page[0], (byte*) challenge)) {
+      if (! ibutton_challenge(page[0], (byte*) challenge)) {
         Serial.println("EXTENDED CHALLENGE ERROR");
         error();
         return;
@@ -185,11 +193,11 @@ void loop () {
   //while (Serial.available()) Serial.read();
 }
 
-bool ibutton_challenge(byte* id, byte page, byte* challenge) {
+bool ibutton_challenge(byte page, byte* challenge) {
   uint8_t data[32];
   uint8_t mac[20];
   
-  if (! sha.ReadAuthWithChallenge(id, page * 32, challenge, data, mac)) {
+  if (! sha.ReadAuthWithChallenge(NULL, page * 32, challenge, data, mac)) {
     return false;
   }
   Serial.print("<");

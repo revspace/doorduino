@@ -38,7 +38,11 @@ static bool ResetAndSelect(OneWire *ow, const uint8_t id[8])
   if (!ow->reset()) {
     return false;
   }
-  ow->select((uint8_t *) id);
+  if (id) {
+    ow->select((uint8_t *) id);
+  } else {
+    ow->skip();
+  }
   
   return true;
 }

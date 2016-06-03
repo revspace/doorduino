@@ -82,7 +82,7 @@ sub logline {
     print STDERR "@_\n"   if     $ENV{DOORDUINO_NOSYSLOG} or $ENV{DOORDUINO_DEBUG};
 }
 
-system qw(stty -F), $dev, qw(cs8 57600 ignbrk -brkint -icrnl -imaxbel -opost
+system qw(stty -F), $dev, qw(cs8 115200 ignbrk -brkint -icrnl -imaxbel -opost
         -onlcr -isig -icanon min 1 time 0 -iexten -echo -echoe -echok -echoctl
         -echoke noflsh -ixon -crtscts);
 

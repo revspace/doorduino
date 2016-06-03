@@ -5,8 +5,12 @@ use IO::Socket::INET ();
 use IO::Handle ();
 use Sys::Syslog qw(openlog syslog :macros);
 
+my $MAX_FAILURES = 10;
 
-sub slurp ($) { local (@ARGV, $/) = @_; <>; }
+sub slurp         { local (@ARGV, $/) = @_; <>; }
+sub random_string { join "", map chr int rand 256, 1..shift }
+sub hex_string    { unpack "H*", shift }
+sub unhex         { pack "H*", shift }
 
 my $hexchar = "0-9A-Fa-f";
 
@@ -14,36 +18,55 @@ use Digest::SHA qw(sha1_hex sha1);
 
 my $dev = shift or die "Usage: $0 /dev/ttyUSBx";
 (my $devname) = $dev =~ m{ ([^/]+) $ }x;
+
 my $ircname = slurp "ircname.$devname";
 chomp $ircname;
 
 $ircname ||= $devname;
 
-
-sub ibutton_digest {
-    my ($id, $secret, $data, $challenge) = @_;
-
-    $id        =~ /^[0-9A-Fa-f]{16}$/ or warn "Invalid ID ($id)";
-    $secret    =~ /^[0-9A-Fa-f]{16}$/ or warn "Invalid secret ($secret)";
-    $data      =~ /^[0-9A-Fa-f]{64}$/ or warn "Invalid data ($data)";
-    $challenge =~ /^[0-9A-Fa-f]{6}$/  or warn "Invalid challenge ($challenge)";
+sub ibutton_sha1 {
+    my $data = join "", @_;
 
     my @H01 = (  # Magische waardes uit NIST 180-1 (SHA1 specificatie)
         0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0
     );
 
-    return uc unpack "H*", reverse join "", map {
+    return scalar reverse join "", map {
         my $n = $_ - shift @H01;
 	# Handmatig want pack N voor negatieve getallen blijtk stuk op perl+arm
         pack "N", $n >= 0 ? $n : (0xFFFFFFFF + $n + 1)
-    } unpack "N*", sha1( pack "H*", join "",
-        substr($secret, 0, 8),
+    } unpack "N*", sha1($data);
+}
+
+sub ibutton_read_mac {
+    my ($id, $secret, $data, $challenge) = @_;
+
+    $_ = unhex($_) for $id, $secret;
+
+    return ibutton_sha1(
+        substr($secret, 0, 4),
         $data,
-        "FFFFFFFF",
-        "40",  # Wat is deze?
-        substr($id, 0, 14),   # zonder checksum
-        substr($secret, 8, 8),
+        "\xFF\xFF\xFF\xFF",
+        "\x40",  # Wat is deze?
+        substr($id, 0, 7),   # zonder checksum
+        substr($secret, 4, 4),
         $challenge
+    );
+}
+
+sub ibutton_write_mac {
+    my ($id, $secret, $data, $newdata) = @_;
+
+    $_ = unhex($_) for $id, $secret;
+
+    return ibutton_sha1(
+        substr($secret, 0, 4),
+        substr($data, 0, 28),
+        $newdata,
+        "\0",  # Wat is deze?
+        substr($id, 0, 7),   # zonder checksum
+        substr($secret, 4, 4),
+        "\xFF\xFF\xFF"
     );
 }
 
@@ -59,18 +82,6 @@ sub logline {
     print STDERR "@_\n"   if     $ENV{DOORDUINO_NOSYSLOG} or $ENV{DOORDUINO_DEBUG};
 }
 
-sub access {
-    my ($out, $descr) = @_;
-
-    logline "Access granted for $descr.\n";
-    print {$out} "A\n";
-    my $barsay = IO::Socket::INET->new(
-        qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
-    );
-    $barsay->print("$ircname unlocked by $descr") if $barsay;
-    flush($out);
-}
-
 system qw(stty -F), $dev, qw(cs8 57600 ignbrk -brkint -icrnl -imaxbel -opost
         -onlcr -isig -icanon min 1 time 0 -iexten -echo -echoe -echok -echoctl
         -echoke noflsh -ixon -crtscts);
@@ -78,11 +89,41 @@ system qw(stty -F), $dev, qw(cs8 57600 ignbrk -brkint -icrnl -imaxbel -opost
 open my $in,  "<", $dev or die $!;
 open my $out, ">", $dev or die $!;
 
+sub access {
+    my ($name, $reason) = @_;
+
+    logline "Access granted for $name, $reason.\n";
+    print {$out} "A\n";
+    my $barsay = IO::Socket::INET->new(
+        qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
+    );
+    $barsay->print("$ircname unlocked by $name") if $barsay;
+    flush($out);
+}
+
+sub no_access {
+    my ($name, $reason) = @_;
+
+    logline "Access denied for $name, $reason.\n";
+    print {$out} "N\n";
+    flush($out);
+}
+
+# state
 my $line;
 my $id;
-my $descr;
+my $name;
 my $secret;
 my $challenge;
+my $expected_response;
+my $failures = 0;
+
+sub reset_state {
+    for ($id, $name, $secret, $challenge, $expected_response) {
+        undef $_;
+    }
+    $failures = 0;
+}
 
 $SIG{ALRM} = sub { print {$out} "K\n" };  # keepalive
 print {$out} "K\n";
@@ -93,10 +134,12 @@ for (;;) {
     alarm 0;
 
     $line .= $char;
-    $line =~ /\n$/ or next;
+    $line =~ s/[\r\n]$// or next;
 
     my $input = $line;
     $line = "";
+
+    length $input or next;
 
     if ($input =~ /<K>/) {
         # Arduino responded to keepalive. Ignore for now.
@@ -106,45 +149,71 @@ for (;;) {
 
     logline "Arduino says: $input";
 
-    if ($input =~ /<([$hexchar]{64}) ([$hexchar]{40})>/) {
-        my ($data, $response) = ($1, $2);
-        my $expected = ibutton_digest($id, $secret, $data, $challenge);
-        if (uc $response eq uc $expected) {
-            access($out, $descr);
-        } else {
-            logline "Invalid response for challenge. Access denied.";
-            print {$out} "N\n";
-        }
+    if ($expected_response and $input eq $expected_response) {
+        access($name, "after extended challenge/response");
+        reset_state();
         next;
+    } elsif ($input =~ /<([$hexchar]{64}) ([$hexchar]{40})>/) {
+        my ($data, $mac) = (unhex($1), unhex($2));
+
+        if (not $challenge) {
+            # We've been here before.
+            no_access($name, "invalid response for extended challenge");
+            reset_state();
+            next;
+        }
+
+        my $wanted = ibutton_read_mac($id, $secret, $data, $challenge);
+
+        if (uc $mac ne uc $wanted) {
+            no_access($name, "invalid response for initial challenge");
+            reset_state();
+            next;
+        }
+
+        undef $challenge;
+
+        logline "Initiating extended challenge/response for $name.";
+
+        my $newdata     = random_string(8);
+        my $offset      = 8 * int rand 4;
+        my $auth        = ibutton_write_mac($id, $secret, $data, $newdata);
+        my $rechallenge = random_string(3);
+
+        substr $data, $offset, 8, $newdata;
+
+        $expected_response = uc sprintf "<%s %s>", (
+            hex_string($data),
+            hex_string(ibutton_read_mac($id, $secret, $data, $rechallenge))
+        );
+
+        print {$out} "X", $rechallenge, chr($offset), $newdata, $auth, "\n"
     } elsif ($input =~ /<(BUTTON|\w{16})>/) {
         $id = $1;
+
+        my $known = join "\n", map slurp($_), glob "ibuttons.acl.d/*.acl";
+
+        my $valid = ($secret, $name)
+            = $known =~ /^$id(?::([$hexchar]{16}))?(?:\s+([^\r\n]+))?/mi;
+
+        if ($valid and $secret) {
+            logline "Initiating challenge/response for $name";
+            $challenge = random_string(3);
+            print {$out} "C$challenge\n";
+        } elsif ($valid) {
+            access($name, "without challenge/response");
+            reset_state();
+        } else {
+            no_access($id, "because it is unlisted");
+            reset_state();
+        }
     } else {
-        next;
-    }
-
-    my $known = join "\n", map slurp($_), glob "ibuttons.acl.d/*.acl";
-    my $valid = ($secret, $descr)
-        = $known =~ /^$id(?::([$hexchar]{16}))?(?:\s+([^\r\n]+))?/mi;
-
-    if ($valid and $secret) {
-        $challenge = join "", map chr rand 256, 1..3;
-        print {$out} "C$challenge\n";
-        $challenge = unpack "H*", $challenge;
-
-        logline "Initiating challenge/response for $descr";
-    } elsif ($valid) {
-        $id = "";
-        $challenge = "";
-
-        access($out, $descr);
-
-    } else {
-        $id = "";
-        $challenge = "";
-
-        logline "Access denied.\n";
-	flush($out);
-        print {$out} "N\n";
+        # Unknown data from arduino; assume it's an error message.
+        $failures++;
+        if ($failures > $MAX_FAILURES) {
+            no_access("Unknown", "because of repeated failures");
+            reset_state();
+        }
     }
 }
 

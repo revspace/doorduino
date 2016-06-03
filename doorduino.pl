@@ -38,8 +38,8 @@ sub ibutton_sha1 {
     } unpack "N*", sha1($data);
 }
 
-sub ibutton_read_mac {
-    my ($id, $secret, $data, $challenge) = @_;
+sub read_mac {
+    my ($id, $secret, $page, $data, $challenge) = @_;
 
     $_ = unhex($_) for $id, $secret;
 
@@ -47,15 +47,15 @@ sub ibutton_read_mac {
         substr($secret, 0, 4),
         $data,
         "\xFF\xFF\xFF\xFF",
-        "\x40",  # Wat is deze?
+        "\x40" | $page,
         substr($id, 0, 7),   # zonder checksum
         substr($secret, 4, 4),
         $challenge
     );
 }
 
-sub ibutton_write_mac {
-    my ($id, $secret, $data, $newdata) = @_;
+sub write_mac {
+    my ($id, $secret, $page, $data, $newdata) = @_;
 
     $_ = unhex($_) for $id, $secret;
 
@@ -63,7 +63,7 @@ sub ibutton_write_mac {
         substr($secret, 0, 4),
         substr($data, 0, 28),
         $newdata,
-        "\0",  # Wat is deze?
+        $page,
         substr($id, 0, 7),   # zonder checksum
         substr($secret, 4, 4),
         "\xFF\xFF\xFF"
@@ -114,12 +114,13 @@ my $line;
 my $id;
 my $name;
 my $secret;
+my $page;
 my $challenge;
 my $expected_response;
 my $failures = 0;
 
 sub reset_state {
-    for ($id, $name, $secret, $challenge, $expected_response) {
+    for ($id, $name, $secret, $page, $challenge, $expected_response) {
         undef $_;
     }
     $failures = 0;
@@ -163,7 +164,7 @@ for (;;) {
             next;
         }
 
-        my $wanted = ibutton_read_mac($id, $secret, $data, $challenge);
+        my $wanted = read_mac($id, $secret, $page, $data, $challenge);
 
         if (uc $mac ne uc $wanted) {
             no_access($name, "invalid response for initial challenge");
@@ -177,17 +178,17 @@ for (;;) {
 
         my $newdata     = random_string(8);
         my $offset      = 8 * int rand 4;
-        my $auth        = ibutton_write_mac($id, $secret, $data, $newdata);
+        my $auth        = write_mac($id, $secret, $page, $data, $newdata);
         my $rechallenge = random_string(3);
 
         substr $data, $offset, 8, $newdata;
 
         $expected_response = uc sprintf "<%s %s>", (
             hex_string($data),
-            hex_string(ibutton_read_mac($id, $secret, $data, $rechallenge))
+            hex_string(read_mac($id, $secret, $page, $data, $rechallenge))
         );
 
-        print {$out} "X", $rechallenge, chr($offset), $newdata, $auth, "\n"
+        print {$out} "X", $page, $rechallenge, chr($offset), $newdata, $auth, "\n"
     } elsif ($input =~ /<(BUTTON|\w{16})>/) {
         $id = $1;
 
@@ -198,8 +199,9 @@ for (;;) {
 
         if ($valid and $secret) {
             logline "Initiating challenge/response for $name";
+            $page = chr int rand 4;
             $challenge = random_string(3);
-            print {$out} "C$challenge\n";
+            print {$out} "C$page$challenge\n";
         } elsif ($valid) {
             access($name, "without challenge/response");
             reset_state();

@@ -53,7 +53,7 @@ DS1961  sha(&ds);
 const int delay_access   =  6000;
 const int delay_noaccess = 10000;
 
-byte addr[8];
+byte id[8];
 
 void led (byte color) {
   digitalWrite(PIN_LED_GREEN, color & GREEN);
@@ -86,39 +86,44 @@ void error () {
 
 void loop () {
   char challenge[3];
-
+  
   static unsigned long keepalive = 0;
 
   if (! (connected && ds.reset())) {  // read ds.reset() as ds.still_connected()
     connected = false;
     ds.reset_search();
-    if (ds.search(addr)) {
-      if (OneWire::crc8(addr, 7) != addr[7]) return;
+    if (ds.search(id)) {
+      if (OneWire::crc8(id, 7) != id[7]) return;
       connected = true;
+      led(OFF);
       Serial.print("<");
       for (byte i = 0; i < 8; i++) {
-        if (addr[i] < 16) Serial.print("0");
-        Serial.print(addr[i], HEX);
+        if (id[i] < 16) Serial.print("0");
+        Serial.print(id[i], HEX);
       }
       Serial.println(">");
     }
   }
-
+  
   if (digitalRead(PIN_BUTTON) == LOW) {
     Serial.println("<BUTTON>");
   }
 
-  unsigned int m = millis() % 3000;
-  bool have_comm = (keepalive && millis() - 5000 < keepalive);
-  led( 
-    ((m > 2600 && m <= 2700) || (m > 2900))
-    ? (have_comm ? OFF : RED)
-    : (have_comm ? YELLOW : OFF)
-  );
+  if (connected) {
+    led(OFF);
+  } else {
+    unsigned int m = millis() % 3000;
+    bool have_comm = (keepalive && millis() - 5000 < keepalive);
+    led( 
+      ((m > 2600 && m <= 2700) || (m > 2900))
+      ? (have_comm ? OFF : RED)
+      : (have_comm ? YELLOW : OFF)
+    );
+  }
 
   while (Serial.available()) {
     char c = Serial.read();
-
+    
     if (c == 'A') {
       // XXX Wat als een challenge ooit "A" bevat?
       Serial.println("ACCESS");
@@ -138,9 +143,12 @@ void loop () {
     } else if (c == 'C') {
       led(OFF);
 
+      unsigned char page[1];
+
+      if (Serial.readBytes(page, 1) != 1) return;
       if (Serial.readBytes(challenge, 3) != 3) return;
 
-      if (! ibutton_challenge(addr, (byte*) challenge)) {
+      if (! ibutton_challenge(id, page[0], (byte*) challenge)) {
         Serial.println("CHALLENGE ERROR");
         error();
         return;
@@ -148,20 +156,22 @@ void loop () {
     } else if (c == 'X') {
       led(OFF);
 
+      unsigned char page[1];
       char newdata[8];
       char mac[20];
       unsigned char offset[1];
+      if (Serial.readBytes(page, 1) != 1) return;
       if (Serial.readBytes(challenge, 3) != 3) return;
       if (Serial.readBytes(offset, 1) != 1) return;
       if (Serial.readBytes(newdata, 8) != 8) return;
       if (Serial.readBytes(mac, 20) != 20) return;
 
-      if (! sha.WriteData(addr, offset[0], (uint8_t*) newdata, (uint8_t*) mac)) {
+      if (! sha.WriteData(id, page[0] * 32 + offset[0], (uint8_t*) newdata, (uint8_t*) mac)) {
         Serial.println("EEPROM WRITE ERROR");
        error();
        return;
       }
-      if (! ibutton_challenge(addr, (byte*) challenge)) {
+      if (! ibutton_challenge(id, page[0], (byte*) challenge)) {
         Serial.println("EXTENDED CHALLENGE ERROR");
         error();
         return;
@@ -171,15 +181,15 @@ void loop () {
       Serial.println("<K>");
     }
   }
-
+  
   //while (Serial.available()) Serial.read();
 }
 
-bool ibutton_challenge(byte* id, byte* challenge) {
+bool ibutton_challenge(byte* id, byte page, byte* challenge) {
   uint8_t data[32];
   uint8_t mac[20];
-
-  if (! sha.ReadAuthWithChallenge(id, 0, challenge, data, mac)) {
+  
+  if (! sha.ReadAuthWithChallenge(id, page * 32, challenge, data, mac)) {
     return false;
   }
   Serial.print("<");

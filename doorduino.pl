@@ -16,13 +16,15 @@ my $hexchar = "0-9A-Fa-f";
 
 use Digest::SHA qw(sha1_hex sha1);
 
-my $dev = shift or die "Usage: $0 /dev/ttyUSBx";
-(my $devname) = $dev =~ m{ ([^/]+) $ }x;
+my $conf_name = shift or die "Usage: $0 foo";
 
-my $ircname = slurp "ircname.$devname";
-chomp $ircname;
+my $conf_file = -e $conf_name ? $conf_name : "$conf_name.conf.pl";
+-r $conf_file or die "Cannot read $conf_file";
+my %conf = do $conf_file;
 
-$ircname ||= $devname;
+my $ircname = $conf{ircname} || $conf_name;
+my $dev = $conf{dev} or die "No dev in $conf_file";
+-w $dev or die "$dev is not writable";
 
 sub ibutton_sha1 {
     my $data = join "", @_;

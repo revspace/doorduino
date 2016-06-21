@@ -23,6 +23,8 @@ my $conf_file = -e $conf_name ? $conf_name : "$conf_name.conf.pl";
 my %conf = do $conf_file;
 
 my $ircname = $conf{ircname} || $conf_name;
+$ircname =~ s/\.conf\.pl$//;
+
 my $dev = $conf{dev} or die "No dev in $conf_file";
 -w $dev or die "$dev is not writable";
 

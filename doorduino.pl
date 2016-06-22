@@ -23,7 +23,9 @@ my $conf_file = -e $conf_name ? $conf_name : "$conf_name.conf.pl";
 my %conf = do $conf_file;
 
 my $ircname = $conf{ircname} || $conf_name;
-$ircname =~ s/\.conf\.pl$//;
+s/\.conf\.pl$// for $ircname, $conf_name;
+
+openlog "doorduino\@$conf_name", -t STDIN ? "nofatal,perror" : "nofatal", LOG_USER;
 
 my $dev = $conf{dev} or die "No dev in $conf_file";
 -w $dev or die "$dev is not writable";
@@ -80,10 +82,14 @@ sub flush {
     tcflush(fileno($fh), TCIFLUSH);
 }
 
-openlog "doorduino", "nofatal,perror", LOG_USER;
-sub logline { 
+sub loginfo { 
     syslog LOG_INFO, "@_" if not $ENV{DOORDUINO_NOSYSLOG};
-    print STDERR "@_\n"   if     $ENV{DOORDUINO_NOSYSLOG} or $ENV{DOORDUINO_DEBUG};
+    print "@_\n"          if     $ENV{DOORDUINO_NOSYSLOG} or $ENV{DOORDUINO_DEBUG};
+}
+
+sub logerror { 
+    syslog LOG_ERR, "@_" if not $ENV{DOORDUINO_NOSYSLOG};
+    warn "@_\n"          if     $ENV{DOORDUINO_NOSYSLOG} or $ENV{DOORDUINO_DEBUG};
 }
 
 system qw(stty -F), $dev, qw(cs8 115200 ignbrk -brkint -icrnl -imaxbel -opost
@@ -96,7 +102,7 @@ open my $out, ">", $dev or die $!;
 sub access {
     my ($name, $reason) = @_;
 
-    logline "Access granted for $name, $reason.\n";
+    loginfo "Access granted for $name, $reason.\n";
     print {$out} "A\n";
     my $barsay = IO::Socket::INET->new(
         qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
@@ -108,7 +114,7 @@ sub access {
 sub no_access {
     my ($name, $reason) = @_;
 
-    logline "Access denied for $name, $reason.\n";
+    loginfo "Access denied for $name, $reason.\n";
     print {$out} "N\n";
     flush($out);
 }
@@ -130,7 +136,15 @@ sub reset_state {
     $failures = 0;
 }
 
-$SIG{ALRM} = sub { print {$out} "K\n" };  # keepalive
+my $last_k;
+$SIG{ALRM} = sub {
+    if ($last_k and time() - $last_k > 1) {
+        logerror "Serial connection lost.";
+    }
+    print {$out} "K\n";
+    $last_k = time;
+};  # keepalive
+
 print {$out} "K\n";
 
 for (;;) {
@@ -147,12 +161,12 @@ for (;;) {
     length $input or next;
 
     if ($input =~ /<K>/) {
-        # Arduino responded to keepalive. Ignore for now.
-        print STDERR strftime("%F %T Keepalive received.\n", localtime);
+        warn strftime("%F %T Keepalive received.\n", localtime) if -t STDIN;
+        $last_k = 0;
         next;
     }
 
-    logline "Arduino says: $input";
+    loginfo "Arduino says: $input";
 
     if ($expected_response and $input eq $expected_response) {
         access($name, "after extended challenge/response");
@@ -178,7 +192,7 @@ for (;;) {
 
         undef $challenge;
 
-        logline "Initiating extended challenge/response for $name.";
+        loginfo "Initiating extended challenge/response for $name.";
 
         my $newdata     = random_string(8);
         my $offset      = 8 * int rand 4;
@@ -202,7 +216,7 @@ for (;;) {
             = $known =~ /^$id(?::([$hexchar]{16}))?(?:\s+([^\r\n]+))?/mi;
 
         if ($valid and $secret) {
-            logline "Initiating challenge/response for $name";
+            loginfo "Initiating challenge/response for $name";
             $page = chr int rand 4;
             $challenge = random_string(3);
             print {$out} "C$page$challenge\n";

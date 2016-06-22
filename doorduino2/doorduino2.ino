@@ -101,7 +101,9 @@ void loop () {
     }
   }
   
-  if (digitalRead(PIN_BUTTON) == LOW) {
+  int button = 0;
+  for (; button < 10 && !digitalRead(PIN_BUTTON); button++) delay(1);
+  if (button >= 10) {
     Serial.println("<BUTTON>");
   }
 

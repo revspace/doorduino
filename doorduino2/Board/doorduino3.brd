@@ -212,12 +212,7 @@ enable</text>
 <wire x1="32.385" y1="60.96" x2="24.765" y2="60.96" width="0.4064" layer="25"/>
 <text x="22.225" y="65.405" size="1.016" layer="25" font="vector">serial</text>
 <wire x1="31.75" y1="68.58" x2="21.59" y2="68.58" width="0.4064" layer="25"/>
-<text x="29.21" y="72.39" size="1.27" layer="25" font="vector" rot="R180">Knock-knock!
-Who is there?
-Doris
-Doris, who?
-Doris locked, 
-that's why i had to knock!</text>
+
 <text x="30.48" y="40.64" size="1.27" layer="25" font="vector" rot="R90">N-mosfet</text>
 <text x="26.035" y="36.195" size="1.016" layer="25" font="vector" distance="151">A3
 A2

@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if ! test -f "$1" -a -r "$1"; then
+        echo "Usage: $0 <hexfile>"
+        exit 1
+fi
+
+systemctl stop 'doorduino@*'
+
+for dev in /dev/doorduino_*; do
+        avrdude -c arduino -p m328p -P $dev -b 57600 -U flash:w:"$1"
+done
+
+systemctl start 'doorduino@*'

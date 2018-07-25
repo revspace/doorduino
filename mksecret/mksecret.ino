@@ -86,7 +86,8 @@ void loop () {
 
 void hexdump(byte* string, int size) {
   for (int i = 0; i < size; i++) {
-    Serial.print(string[i] >> 4, HEX);
-    Serial.print(string[i] & 0xF, HEX);
+    char buf[3] = {0};
+    snprintf(buf, sizeof(buf), "%x%x", string[i] >> 4, string[i] & 0xF);
+    Serial.print(buf);
   }
 }

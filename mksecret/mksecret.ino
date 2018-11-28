@@ -1,5 +1,5 @@
-#include <Entropy.h>
-#include <OneWire.h>
+#include "Entropy.h"
+#include "OneWire.h"
 #include "ds1961.h"
 #include "hexutil.c"
 
@@ -45,7 +45,7 @@ void setup () {
   Serial.println("RESET");
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_RED,   OUTPUT);
-  Entropy.Initialize();
+  Entropy.initialize();
 }
 
 void loop () {

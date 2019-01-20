@@ -5,8 +5,8 @@ WantedBy=multi-user.target
 Description=Doorduino voor %I
 
 [Service]
-WorkingDirectory=/home/pi
+WorkingDirectory=/home/pi/doorduino
 User=pi
-ExecStart=/home/pi/doorduino.pl %I
+ExecStart=/home/pi/doorduino/doorduino.pl %I
 Restart=always
 RestartSec=2

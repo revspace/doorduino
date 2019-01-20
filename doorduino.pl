@@ -20,7 +20,7 @@ my $conf_name = shift or die "Usage: $0 foo";
 
 my $conf_file = -e $conf_name ? $conf_name : "$conf_name.conf.pl";
 -r $conf_file or die "Cannot read $conf_file";
-my %conf = do $conf_file;
+my %conf = do { local @INC = ("./"); do $conf_file; };
 
 my $ircname = $conf{ircname} || $conf_name;
 s/\.conf\.pl$// for $ircname, $conf_name;

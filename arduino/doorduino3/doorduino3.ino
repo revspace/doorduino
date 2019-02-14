@@ -112,7 +112,7 @@ void loop () {
     for (int i = 0; i < 5; i++) {
       led(OFF);
       delay(50);
-      led(GREEN);
+      led(YELLOW);
       delay(25);
     }
   }

@@ -1,0 +1,15 @@
+Add scripts to this directory, make them executable. They will be executed by
+"run-parts", so read its documentation for learning which filenames are
+acceptable. The combined scripts must finish within 5 seconds or they will be
+killed.
+
+Note that this is probably the place where you'll introduce security bugs that
+may result in unauthorized access to your building, or denial of service bugs
+so that eventually nobody can enter anymore. Be careful.
+
+The following environment variables are available:
+
+    DOORDUINO_IRCNAME       Name of the lock
+    DOORDUINO_ID            ID of the user or "UNKNOWN"
+    DOORDUINO_NAME          Name of the user or "Unknown"
+    DOORDUINO_REASON        What led to granting or denying access

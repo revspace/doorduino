@@ -30,6 +30,9 @@ openlog "doorduino\@$conf_name", -t STDIN ? "nofatal,perror" : "nofatal", LOG_US
 my $dev = $conf{dev} or die "No dev in $conf_file";
 -w $dev or die "$dev is not writable";
 
+my $acldir = $conf{acldir} // "ibuttons.acl.d";
+-d $acldir or die "$acldir is not a directory";
+
 sub ibutton_sha1 {
     my $data = join "", @_;
 
@@ -210,7 +213,7 @@ for (;;) {
     } elsif ($input =~ /<(BUTTON|\w{16})>/) {
         $id = $1;
 
-        my $known = join "\n", map slurp($_), glob "ibuttons.acl.d/*.acl";
+        my $known = join "\n", map slurp($_), glob "$acldir/*.acl";
 
         my $valid = ($secret, $name)
             = $known =~ /^$id(?::([$hexchar]{16}))?(?:\s+([^\r\n]+))?/mi;

@@ -1,7 +1,6 @@
 #!/usr/bin/perl -w
 use strict;
 use POSIX qw(strftime tcflush TCIFLUSH);
-use IO::Socket::INET ();
 use IO::Handle ();
 use Sys::Syslog qw(openlog syslog :macros);
 
@@ -103,23 +102,31 @@ open my $in,  "<", $dev or die $!;
 open my $out, ">", $dev or die $!;
 
 sub access {
-    my ($name, $reason) = @_;
+    my ($id, $name, $reason) = @_;
 
     loginfo "Access granted for $name, $reason.\n";
     print {$out} "A\n";
-    my $barsay = IO::Socket::INET->new(
-        qw(PeerAddr 10.42.42.1  PeerPort 64123  Proto tcp)
-    );
-    $barsay->print("$ircname unlocked by $name") if $barsay;
     flush($out);
+
+    local $ENV{DOORDUINO_IRCNAME} = $ircname;
+    local $ENV{DOORDUINO_NAME} = $name;
+    local $ENV{DOORDUINO_REASON} = $reason;
+    local $ENV{DOORDUINO_ID} = $id;
+    system "timeout", 5, "run-parts", "granted.d";
 }
 
 sub no_access {
-    my ($name, $reason) = @_;
+    my ($id, $name, $reason) = @_;
 
     loginfo "Access denied for $name, $reason.\n";
     print {$out} "N\n";
     flush($out);
+
+    local $ENV{DOORDUINO_IRCNAME} = $ircname;
+    local $ENV{DOORDUINO_NAME} = $name;
+    local $ENV{DOORDUINO_REASON} = $reason;
+    local $ENV{DOORDUINO_ID} = $id;
+    system "timeout", 5, "run-parts", "denied.d";
 }
 
 # state
@@ -172,7 +179,7 @@ for (;;) {
     loginfo "Arduino says: $input";
 
     if ($expected_response and $input eq $expected_response) {
-        access($name, "after extended challenge/response");
+        access($id, $name, "after extended challenge/response");
         reset_state();
         next;
     } elsif ($input =~ /<([$hexchar]{64}) ([$hexchar]{40})>/) {
@@ -180,7 +187,7 @@ for (;;) {
 
         if (not $challenge) {
             # We've been here before.
-            no_access($name, "invalid response for extended challenge");
+            no_access($id, $name, "invalid response for extended challenge");
             reset_state();
             next;
         }
@@ -188,7 +195,7 @@ for (;;) {
         my $wanted = read_mac($id, $secret, $page, $data, $challenge);
 
         if (uc $mac ne uc $wanted) {
-            no_access($name, "invalid response for initial challenge");
+            no_access($id, $name, "invalid response for initial challenge");
             reset_state();
             next;
         }
@@ -224,17 +231,17 @@ for (;;) {
             $challenge = random_string(3);
             print {$out} "C$page$challenge\n";
         } elsif ($valid) {
-            access($name, "without challenge/response");
+            access($id, $name, "without challenge/response");
             reset_state();
         } else {
-            no_access($id, "because it is unlisted");
+            no_access($id, $id, "because it is unlisted");
             reset_state();
         }
     } else {
         # Unknown data from arduino; assume it's an error message.
         $failures++;
         if ($failures > $MAX_FAILURES) {
-            no_access("Unknown", "because of repeated failures");
+            no_access("UNKNOWN", "Unknown", "because of repeated failures");
             reset_state();
         }
     }

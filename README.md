@@ -1,12 +1,6 @@
-# doorduino
-Open sesame
+# Doorduino
 
-Lees vooral ook de Wikipagina's:
-
-https://revspace.nl/Doorduino3 (Nieuwe hardware iteratie, exact als Doorduino2 maar dan mooier)
-https://revspace.nl/Doorduino2
-
-== Configuration
+## Configuration
 
 Create a configuration file for every door, in which 'dev' points to the
 serial device of the associated Arduino.
@@ -14,11 +8,14 @@ serial device of the associated Arduino.
     echo "dev => '/dev/ttyUSB0'" > /home/pi/frontdoor.conf.pl
     echo "dev => '/dev/ttyUSB1'" > /home/pi/backdoor.conf.pl
 
-== Starting manually, in the foreground ==
+Add keys to files in `ibuttons.acl.d`, and optionally add executable scripts to
+`granted.d` and `denied.d`.
+
+## Starting manually, in the foreground
 
     ./doorduino.pl frontdoor  # or another config file
 
-== Starting automatically using the systemd unit ==
+## Starting automatically using the systemd unit
 
     cp doorduino@.service /etc/systemd/system
 
@@ -27,6 +24,10 @@ serial device of the associated Arduino.
 
     systemctl status doorduino@frontdoor
 
-== Starting automatically with cron ==
+## Starting automatically with cron
 
-See doc/crontab.example and scripts/restartloop.sh
+See `doc/crontab.example` and `scripts/restartloop.sh`
+
+## See also
+
+https://revspace.nl/Doorduino

@@ -1,3 +1,0 @@
-@reboot screen -dmS doorduino0 /home/pi/restartloop.sh /dev/ttyUSB0
-@reboot screen -dmS doorduino1 /home/pi/restartloop.sh /dev/ttyUSB1
-

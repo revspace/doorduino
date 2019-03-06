@@ -3,8 +3,10 @@ use strict;
 use POSIX qw(strftime tcflush TCIFLUSH);
 use IO::Handle ();
 use Sys::Syslog qw(openlog syslog :macros);
+use Time::HiRes qw(time sleep);
 
-my $MAX_FAILURES = 10;
+my $MAX_FAILURES = 20;
+my $TIMEOUT = 2;  # reset state after n seconds of silence
 
 sub slurp         { local (@ARGV, $/) = @_; <>; }
 sub random_string { join "", map chr int rand 256, 1..shift }
@@ -80,7 +82,7 @@ sub write_mac {
 
 sub flush {
     my ($fh) = @_;
-    sleep 1;
+    sleep .1;
     tcflush(fileno($fh), TCIFLUSH);
 }
 
@@ -106,13 +108,14 @@ sub access {
 
     loginfo "Access granted for $name, $reason.\n";
     print {$out} "A\n";
-    flush($out);
 
     local $ENV{DOORDUINO_IRCNAME} = $ircname;
     local $ENV{DOORDUINO_NAME} = $name;
     local $ENV{DOORDUINO_REASON} = $reason;
     local $ENV{DOORDUINO_ID} = $id;
     system "timeout", 5, "run-parts", "granted.d";
+
+    flush($out);
 }
 
 sub no_access {
@@ -120,13 +123,13 @@ sub no_access {
 
     loginfo "Access denied for $name, $reason.\n";
     print {$out} "N\n";
-    flush($out);
 
     local $ENV{DOORDUINO_IRCNAME} = $ircname;
     local $ENV{DOORDUINO_NAME} = $name;
     local $ENV{DOORDUINO_REASON} = $reason;
     local $ENV{DOORDUINO_ID} = $id;
     system "timeout", 5, "run-parts", "denied.d";
+    flush($out);
 }
 
 # state
@@ -157,6 +160,8 @@ $SIG{ALRM} = sub {
 
 print {$out} "K\n";
 
+my $last_input;
+
 for (;;) {
     alarm 3;
     sysread($in, my $char, 1) or next;
@@ -175,6 +180,9 @@ for (;;) {
         $last_k = 0;
         next;
     }
+
+    reset_state if time() >= $last_input + $TIMEOUT;
+    $last_input = time;
 
     loginfo "Arduino says: $input";
 

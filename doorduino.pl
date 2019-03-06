@@ -160,7 +160,7 @@ $SIG{ALRM} = sub {
 
 print {$out} "K\n";
 
-my $last_input;
+my $last_input = 0;
 
 for (;;) {
     alarm 3;

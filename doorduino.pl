@@ -231,7 +231,11 @@ for (;;) {
         my $known = join "\n", map slurp($_), glob "$acldir/*.acl";
 
         my $valid = ($secret, $name)
-            = $known =~ /^$id(?::([$hexchar]{16}))?(?:\s+([^\r\n]+))?/mi;
+            = $known =~ m[^
+                $id
+                (?: :      ( [$hexchar]{16} ))?
+                (?: [ \t]+ ( [^\r\n]+ ))?
+            ]mix;
 
         if ($valid and $secret) {
             loginfo "Initiating challenge/response for $name";

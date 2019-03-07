@@ -238,8 +238,14 @@ for (;;) {
             $page = chr int rand 4;
             $challenge = random_string(3);
             print {$out} "C$page$challenge\n";
-        } elsif ($valid) {
+        } elsif ($valid and $id eq 'BUTTON') {
+            access($id, $name, "button access allowed in ACL");
+            reset_state();
+        } elsif ($valid and $conf{allow_insecure}) {
             access($id, $name, "without challenge/response");
+            reset_state();
+        } elsif ($valid) {
+            no_access($id, $name, "ID-only access is disabled");
             reset_state();
         } else {
             no_access($id, $id, "because it is unlisted");

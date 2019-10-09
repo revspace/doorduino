@@ -6,6 +6,7 @@ use Sys::Syslog qw(openlog syslog :macros);
 use Time::HiRes qw(time sleep);
 
 my $MAX_FAILURES = 20;
+my $MAX_WRONG_RESPONSES = 3;
 my $TIMEOUT = 2;  # reset state after n seconds of silence
 
 sub slurp         { local (@ARGV, $/) = @_; <>; }
@@ -146,6 +147,7 @@ my $page;
 my $challenge;
 my $expected_response;
 my $failures = 0;
+my $attempts = 0;  # currently, only initial challenge/response is retried
 
 sub reset_state {
     for ($id, $name, $secret, $page, $challenge, $expected_response) {
@@ -208,9 +210,17 @@ for (;;) {
         my $wanted = read_mac($id, $secret, $page, $data, $challenge);
 
         if (uc $mac ne uc $wanted) {
-            no_access($id, $name, "invalid response for initial challenge");
-            reset_state();
-            next;
+            if (++$attempts >= $MAX_WRONG_RESPONSES) {
+                no_access($id, $name, "invalid response for initial challenge");
+                reset_state();
+                next;
+            } else {
+                loginfo "Initiating challenge/response for $name (attempt $attempts)";
+                $page = chr int rand 4;
+                $challenge = random_string(3);
+                print {$out} "C$page$challenge\n";
+                next;
+            }
         }
 
         undef $challenge;
@@ -244,6 +254,7 @@ for (;;) {
 
         if ($valid and $secret) {
             loginfo "Initiating challenge/response for $name";
+            $attempts = 0;
             $page = chr int rand 4;
             $challenge = random_string(3);
             print {$out} "C$page$challenge\n";

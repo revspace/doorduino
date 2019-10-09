@@ -107,13 +107,18 @@ sub access {
     my ($id, $name, $reason) = @_;
 
     loginfo "Access granted for $name, $reason.\n";
-    print {$out} "A\n";
+    if ($conf{skip_access}) {
+        loginfo "Access command not sent to doorduino (skip_access is active).";
+    } else {
+        print {$out} "A\n" unless $conf{skip_access};
+    }
 
     local $ENV{DOORDUINO_IRCNAME} = $ircname;
     local $ENV{DOORDUINO_NAME} = $name;
     local $ENV{DOORDUINO_REASON} = $reason;
     local $ENV{DOORDUINO_ID} = $id;
     system "timeout", 5, "run-parts", "granted.d";
+    sleep 2 if $conf{skip_access};  # debounce not done by doorduino in this case
 
     flush($out);
 }

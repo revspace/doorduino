@@ -107,17 +107,42 @@ open my $out, ">", $dev or die $!;
 sub access {
     my ($id, $name, $reason) = @_;
 
-    loginfo "Access granted for $name, $reason.\n";
-    if ($conf{skip_access}) {
-        loginfo "Access command not sent to doorduino (skip_access is active).";
-    } else {
-        print {$out} "A\n" unless $conf{skip_access};
-    }
-
     local $ENV{DOORDUINO_IRCNAME} = $ircname;
     local $ENV{DOORDUINO_NAME} = $name;
     local $ENV{DOORDUINO_REASON} = $reason;
     local $ENV{DOORDUINO_ID} = $id;
+
+    if ($conf{skip_access}) {
+        loginfo "Access command not sent to doorduino (skip_access is active).";
+    } else {
+        if ($conf{verify_fail_locked}) {
+            # Deny access if the program exits with anything but 0,
+            # allow access only if the program exited cleanly.
+            my $exitval = system "timeout", 2, $conf{verify_fail_locked};
+            $exitval >>= 8 if $exitval;
+            if ($exitval != 0) {
+                no_access($id, $name, "verification script exited with $exitval");
+                return;
+            }
+        }
+
+        if ($conf{verify_fail_open}) {
+            # Deny access if the program exits with 77 (sysexits.h EX_NOPERM)
+            # but allow access if the program exits with any other status.
+            my $exitval = system "timeout", 2, $conf{verify_fail_open};
+            $exitval >>= 8 if $exitval;
+            if ($exitval == 77) {
+                no_access($id, $name, "verification script exited with $exitval");
+                return;
+            } elsif ($exitval) {
+                loginfo("Verification script exited with $exitval; ignoring");
+            }
+        }
+
+        loginfo "Access granted for $name, $reason.\n";
+        print {$out} "A\n";
+    }
+
     system "timeout", 5, "run-parts", "granted.d";
     sleep 2 if $conf{skip_access};  # debounce not done by doorduino in this case
 
